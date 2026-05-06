@@ -23,9 +23,37 @@ FROM artist
 WHERE name NOT LIKE '% %';
 
 --5. Название треков, которые содержат слово «мой» или «my».
+
+-- Добавляем треки, которые ДОЛЖНЫ попасть в выборку
+INSERT INTO track (title, duration, album_id) VALUES
+('my own', 180, 4),
+('own my', 180, 4),
+('my', 180, 4),
+('oh my god', 180, 4);
+
+-- Добавляем треки, которые НЕ ДОЛЖНЫ попасть в выборку
+INSERT INTO track (title, duration, album_id) VALUES
+('myself', 180, 4),
+('by myself', 180, 4),
+('bemy self', 180, 4),
+('myself by', 180, 4),
+('by myself by', 180, 4),
+('beemy', 180, 4),
+('premyne', 180, 4);
+
 SELECT title AS track_title
 FROM track
-WHERE LOWER(title) LIKE '%мой%' OR LOWER(title) LIKE '%my%';
+WHERE 
+   -- Для 'my'
+   title ILIKE 'my' 
+   OR title ILIKE 'my %' 
+   OR title ILIKE '% my' 
+   OR title ILIKE '% my %'
+   -- Для 'мой'
+   OR title ILIKE 'мой' 
+   OR title ILIKE 'мой %' 
+   OR title ILIKE '% мой' 
+   OR title ILIKE '% мой %';
 
 
 
