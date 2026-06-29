@@ -40,8 +40,17 @@ def create_and_cleanup_folder(headers, temp_folder):
 def test_create_folder_success(headers, create_and_cleanup_folder):
     folder = create_and_cleanup_folder
     folder_path = f"disk:/{folder}"
+
+    # Проверяем, что папка присутствует в списке файлов корня
+    list_response = requests.get(BASE_URL, headers=headers, params={"path": "disk:/"})
+    assert list_response.status_code == 200, "Не удалось получить список файлов"
+    items = list_response.json().get("_embedded", {}).get("items", [])
+    folder_names = [item["name"] for item in items]
+    assert folder in folder_names, f"Папка '{folder}' не найдена в списке файлов"
+
+    # Дополнительно проверяем, что GET к папке возвращает 200 (существует)
     meta_response = requests.get(BASE_URL, headers=headers, params={"path": folder_path})
-    assert meta_response.status_code == 200, "Папка не найдена после создания"
+    assert meta_response.status_code == 200, "Папка не существует"
     data = meta_response.json()
     assert data.get("name") == folder, "Имя папки не совпадает"
 
@@ -60,9 +69,16 @@ def test_create_folder_success_with_subpath(headers, temp_folder):
     resp_child = requests.put(BASE_URL, headers=headers, params={"path": child_path})
     assert resp_child.status_code == 201, f"Не удалось создать дочернюю папку: {resp_child.text}"
 
-    # Проверяем существование дочерней папки
+    # Проверяем, что дочерняя папка появилась в списке родительской директории
+    list_response = requests.get(BASE_URL, headers=headers, params={"path": parent_path})
+    assert list_response.status_code == 200, "Не удалось получить список родительской папки"
+    items = list_response.json().get("_embedded", {}).get("items", [])
+    child_names = [item["name"] for item in items]
+    assert "subfolder" in child_names, "Дочерняя папка не найдена в списке родительской папки"
+
+    # Дополнительно проверяем GET на дочернюю папку (существование)
     meta_response = requests.get(BASE_URL, headers=headers, params={"path": child_path})
-    assert meta_response.status_code == 200, "Дочерняя папка не найдена"
+    assert meta_response.status_code == 200, "Дочерняя папка не существует"
 
     # Очистка: удаляем родительскую папку рекурсивно
     requests.delete(BASE_URL, headers=headers, params={"path": parent_path, "permanently": "true"})
