@@ -1,4 +1,4 @@
-rom uuid import uuid4
+from uuid import uuid4
 
 import pytest
 import requests
@@ -86,3 +86,17 @@ def test_create_existing_folder(headers, create_and_cleanup_folder):
 def test_create_folder_invalid_path(headers):
     response = requests.put(BASE_URL, headers=headers, params={"path": "disk://///invalid"})
     assert response.status_code == 404
+
+
+def test_create_folder_unauthorized(temp_folder):
+    headers_no_auth = {}
+    folder_path = f"disk:/{temp_folder}"
+    response = requests.put(BASE_URL, headers=headers_no_auth, params={"path": folder_path})
+    assert response.status_code == 401, "Ожидается 401 при отсутствии авторизации"
+
+
+def test_create_folder_with_wrong_token(temp_folder):
+    wrong_headers = {"Authorization": "OAuth wrong_token"}
+    folder_path = f"disk:/{temp_folder}"
+    response = requests.put(BASE_URL, headers=wrong_headers, params={"path": folder_path})
+    assert response.status_code == 401, "Ожидается 401 при неверном токене"
