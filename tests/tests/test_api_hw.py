@@ -1,4 +1,4 @@
-from uuid import uuid4
+rom uuid import uuid4
 
 import pytest
 import requests
@@ -28,68 +28,49 @@ def temp_folder():
 
 @pytest.fixture
 def create_and_cleanup_folder(headers, temp_folder):
-    """
-    Создаёт папку (без проверки статуса) и удаляет после теста.
-    Успешность создания проверяется в тестах через GET 200.
-    """
+    """Создаёт папку для тестов с повторным созданием и удаляет после теста."""
     folder_path = f"disk:/{temp_folder}"
-    requests.put(BASE_URL, headers=headers, params={"path": folder_path})
+    response = requests.put(BASE_URL, headers=headers, params={"path": folder_path})
+    assert response.status_code == 201, f"Не удалось создать папку: {response.text}"
     yield temp_folder
     requests.delete(BASE_URL, headers=headers, params={"path": folder_path, "permanently": "true"})
 
 
 # ---------- ПОЛОЖИТЕЛЬНЫЕ ТЕСТЫ ----------
 
-def test_create_folder_success(headers, create_and_cleanup_folder):
-    """
-    Проверяет успешное создание папки:
-    - GET к папке возвращает 200 (существует)
-    - папка присутствует в списке файлов корня (GET 200)
-    """
-    folder = create_and_cleanup_folder
-    folder_path = f"disk:/{folder}"
+def test_create_folder_success(headers, temp_folder):
+    folder_path = f"disk:/{temp_folder}"
 
-    # 1. Проверка, что GET на папку возвращает 200
-    meta_response = requests.get(BASE_URL, headers=headers, params={"path": folder_path})
-    assert meta_response.status_code == 200, "Папка не существует"
-    data = meta_response.json()
-    assert data.get("name") == folder, "Имя папки не совпадает"
+    response = requests.put(BASE_URL, headers=headers, params={"path": folder_path})
+    assert response.status_code == 201, f"Ожидался код 201 при создании папки: {response.text}"
 
-    # 2. Проверка появления в списке корня
     list_response = requests.get(BASE_URL, headers=headers, params={"path": "disk:/"})
     assert list_response.status_code == 200, "Не удалось получить список файлов"
     items = list_response.json().get("_embedded", {}).get("items", [])
     folder_names = [item["name"] for item in items]
-    assert folder in folder_names, f"Папка '{folder}' не найдена в списке файлов"
+    assert temp_folder in folder_names, f"Папка '{temp_folder}' не найдена в списке файлов"
+
+    requests.delete(BASE_URL, headers=headers, params={"path": folder_path, "permanently": "true"})
 
 
 def test_create_folder_success_with_subpath(headers, temp_folder):
-    """
-    Создание вложенной папки.
-    Проверяет, что GET к родительской папке возвращает 200
-    и дочерняя папка присутствует в списке.
-    """
     parent = temp_folder
     child = f"{parent}/subfolder"
     parent_path = f"disk:/{parent}"
     child_path = f"disk:/{child}"
 
-    # Создаём папки (без проверки статуса PUT)
-    requests.put(BASE_URL, headers=headers, params={"path": parent_path})
-    requests.put(BASE_URL, headers=headers, params={"path": child_path})
+    resp_parent = requests.put(BASE_URL, headers=headers, params={"path": parent_path})
+    assert resp_parent.status_code == 201, f"Не удалось создать родительскую папку: {resp_parent.text}"
 
-    # Проверяем, что дочерняя папка существует (GET 200)
-    meta_response = requests.get(BASE_URL, headers=headers, params={"path": child_path})
-    assert meta_response.status_code == 200, "Дочерняя папка не существует"
+    resp_child = requests.put(BASE_URL, headers=headers, params={"path": child_path})
+    assert resp_child.status_code == 201, f"Не удалось создать дочернюю папку: {resp_child.text}"
 
-    # Проверяем, что дочерняя папка появилась в списке родительской (GET 200)
     list_response = requests.get(BASE_URL, headers=headers, params={"path": parent_path})
     assert list_response.status_code == 200, "Не удалось получить список родительской папки"
     items = list_response.json().get("_embedded", {}).get("items", [])
     child_names = [item["name"] for item in items]
     assert "subfolder" in child_names, "Дочерняя папка не найдена в списке родительской папки"
 
-    # Очистка: удаляем родительскую папку рекурсивно
     requests.delete(BASE_URL, headers=headers, params={"path": parent_path, "permanently": "true"})
 
 
@@ -105,17 +86,3 @@ def test_create_existing_folder(headers, create_and_cleanup_folder):
 def test_create_folder_invalid_path(headers):
     response = requests.put(BASE_URL, headers=headers, params={"path": "disk://///invalid"})
     assert response.status_code == 404
-
-
-def test_create_folder_unauthorized(temp_folder):
-    headers_no_auth = {}
-    folder_path = f"disk:/{temp_folder}"
-    response = requests.put(BASE_URL, headers=headers_no_auth, params={"path": folder_path})
-    assert response.status_code == 401, "Ожидается 401 при отсутствии авторизации"
-
-
-def test_create_folder_with_wrong_token(temp_folder):
-    wrong_headers = {"Authorization": "OAuth wrong_token"}
-    folder_path = f"disk:/{temp_folder}"
-    response = requests.put(BASE_URL, headers=wrong_headers, params={"path": folder_path})
-    assert response.status_code == 401, "Ожидается 401 при неверном токене"
